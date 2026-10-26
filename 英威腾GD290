@@ -1,0 +1,113 @@
+(*
+ 英威腾GD290
+P00.01:    1 端子运行
+P00.06: A频率指令选择     8 Mobuds 通讯
+P00.07: A频率指令选择     8 Mobuds 通讯
+P05.01: S1端子功能选择   1    正转运行
+P06.03: RO继电器输出     1   运行中
+P06.04: RO继电器输出     5   故障
+P14.00: 通讯地址             1-2  站地址
+P14.01: 波特率                 3    9600
+P14.02: 数据位                1  偶校验 N-8-1
+
+读取地址
+读取实际频率    3000H    52289
+读取设定频率    3001H    52290
+读取输出电流    3004H    52293
+
+写入地址
+频率  2001H    48194
+
+*)
+
+Modbus DB3
+Stayic
+ Master   STUCT
+   REQ     Array[0..100]of Bool
+   DONE    Array[0..100]of Bool
+   ERROR   Array[0..100]of Bool 
+ VF       STUCT
+   rBF1    Array[0..4]of Word
+   rBF2    Array[0..4]of Word
+   wBF1     Word           
+   wBF2     Word 
+ step     Word
+
+CASE "Modbus".step OF
+        
+        //================ STEP 0 =================
+        //读取1号变频器：频率、电流
+    0:
+        "Modbus".Master.REQ["Modbus".step] := TRUE;
+        "Modbus_Master_DB"(REQ := "Modbus".Master.REQ["Modbus".step],
+                           MB_ADDR := 1,
+                           MODE := 0,
+                           DATA_ADDR := 412289,
+                           DATA_LEN := 5,
+                           DONE => "Modbus".Master.DONE["Modbus".step],
+                           ERROR => "Modbus".Master.ERROR["Modbus".step],
+                           DATA_PTR := "Modbus".VF.rBF1);
+        
+        IF "Modbus".Master.DONE["Modbus".step] OR "Modbus".Master.ERROR["Modbus".step] THEN
+            "Modbus".Master.REQ["Modbus".step] := FALSE;
+            "Modbus".step := 1;
+        END_IF;
+        
+        
+        //================ STEP 1 =================
+        //读取2号变频器：频率、电流
+    1:
+        "Modbus".Master.REQ["Modbus".step] := TRUE;
+        "Modbus_Master_DB"(REQ := "Modbus".Master.REQ["Modbus".step],
+                           MB_ADDR := 2,
+                           MODE := 0,
+                           DATA_ADDR := 412289,
+                           DATA_LEN := 5,
+                           DONE => "Modbus".Master.DONE["Modbus".step],
+                           ERROR => "Modbus".Master.ERROR["Modbus".step],
+                           DATA_PTR := "Modbus".VF.rBF2);
+        
+        IF "Modbus".Master.DONE["Modbus".step] OR "Modbus".Master.ERROR["Modbus".step] THEN
+            "Modbus".Master.REQ["Modbus".step] := FALSE;
+            "Modbus".step := 2;
+        END_IF;
+        
+        
+        //================ STEP 2 =================
+        //写入1号变频器设定频率
+    2:
+        "Modbus".Master.REQ["Modbus".step] := TRUE;
+        "Modbus_Master_DB"(REQ := "Modbus".Master.REQ["Modbus".step],
+                           MB_ADDR := 1,
+                           MODE := 1,
+                           DATA_ADDR := 48194,
+                           DATA_LEN := 1,
+                           DONE => "Modbus".Master.DONE["Modbus".step],
+                           ERROR => "Modbus".Master.ERROR["Modbus".step],
+                           DATA_PTR := "Modbus".VF.wBF1);
+        
+        IF "Modbus".Master.DONE[2] OR "Modbus".Master.ERROR["Modbus".step] THEN
+            "Modbus".Master.REQ[2] := FALSE;
+            "Modbus".step := 3;
+        END_IF;
+        
+        
+        //================ STEP 3 =================
+        //写入2号变频器设定频率
+    3:
+        "Modbus".Master.REQ["Modbus".step] := TRUE;
+        "Modbus_Master_DB"(REQ := "Modbus".Master.REQ["Modbus".step],
+                           MB_ADDR := 2,
+                           MODE := 1,
+                           DATA_ADDR := 48194,
+                           DATA_LEN := 1,
+                           DONE => "Modbus".Master.DONE["Modbus".step],
+                           ERROR => "Modbus".Master.ERROR["Modbus".step],
+                           DATA_PTR := "Modbus".VF.wBF2);
+        
+        IF "Modbus".Master.DONE["Modbus".step] OR "Modbus".Master.ERROR["Modbus".step] THEN
+            "Modbus".Master.REQ["Modbus".step] := FALSE;
+            "Modbus".step := 0;
+        END_IF;
+        
+END_CASE;
